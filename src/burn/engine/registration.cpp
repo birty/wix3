@@ -42,6 +42,7 @@ const LPCWSTR REGISTRY_BUNDLE_UNINSTALL_STRING = L"UninstallString";
 const LPCWSTR REGISTRY_BUNDLE_RESUME_COMMAND_LINE = L"BundleResumeCommandLine";
 const LPCWSTR REGISTRY_BUNDLE_VERSION_MAJOR = L"VersionMajor";
 const LPCWSTR REGISTRY_BUNDLE_VERSION_MINOR = L"VersionMinor";
+const LPCWSTR REGISTRY_BUNDLE_INSTALL_LOCATION = L"InstallLocation";
 
 const LPCWSTR SWIDTAG_FOLDER = L"swidtag";
 
@@ -65,6 +66,10 @@ static HRESULT GetBundleName(
     __in BURN_VARIABLES* pVariables,
     __out LPWSTR* psczBundleName
     );
+static HRESULT GetBundleInstallLocation(
+	__in BURN_VARIABLES* pVariables,
+	__out LPWSTR* psczBundleInstallLocation
+	);
 static HRESULT UpdateResumeMode(
     __in BURN_REGISTRATION* pRegistration,
     __in HKEY hkRegistration,
@@ -887,6 +892,7 @@ extern "C" HRESULT RegistrationSessionEnd(
 {
     HRESULT hr = S_OK;
     LPWSTR sczRebootRequiredKey = NULL;
+	LPWSTR sczBundleInstallLocation = NULL;
     HKEY hkRebootRequired = NULL;
     HKEY hkRegistration = NULL;
 
@@ -954,11 +960,21 @@ extern "C" HRESULT RegistrationSessionEnd(
     hr = UpdateResumeMode(pRegistration, hkRegistration, resumeMode, BOOTSTRAPPER_APPLY_RESTART_INITIATED == restart);
     ExitOnFailure(hr, "Failed to update resume mode.");
 
+	if (hkRegistration) 
+	{
+		hr = GetBundleInstallLocation(pVariables, &sczBundleInstallLocation);
+		if (SUCCEEDED(hr) && (sczBundleInstallLocation))
+		{
+			hr = RegWriteString(hkRegistration, REGISTRY_BUNDLE_INSTALL_LOCATION, sczBundleInstallLocation);
+			ExitOnFailure(hr, "Failed to write %ls value.", REGISTRY_BUNDLE_INSTALL_LOCATION);
+		}
+	}
+
 LExit:
     ReleaseRegKey(hkRegistration);
     ReleaseRegKey(hkRebootRequired);
     ReleaseStr(sczRebootRequiredKey);
-
+	ReleaseStr(sczBundleInstallLocation);
     return hr;
 }
 
@@ -1178,6 +1194,14 @@ static HRESULT GetBundleName(
 
 LExit:
     return hr;
+}
+
+static HRESULT GetBundleInstallLocation(
+	__in BURN_VARIABLES* pVariables,
+	__out LPWSTR* psczBundleInstallLocation
+	)
+{
+	return VariableGetString(pVariables, BURN_BUNDLE_INSTALL_LOCATION, psczBundleInstallLocation);
 }
 
 static HRESULT UpdateResumeMode(

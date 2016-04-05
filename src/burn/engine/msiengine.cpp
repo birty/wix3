@@ -15,7 +15,7 @@
 
 
 // constants
-
+const LPCWSTR MSI_REGISTRATION_REGISTRY_UNINSTALL_KEY = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
 
 // structs
 
@@ -1086,6 +1086,54 @@ LExit:
     return hr;
 }
 
+extern "C" HRESULT SetBundleInstallLocationVariableFromMSI(
+	__in BURN_PACKAGE* pPackage,
+	__in BURN_VARIABLES* pVariables
+	)
+{
+	// attempt to set the BURN_BUNDLE_INSTALL_LOCATION variable from the MSI product code's InstallLocation registration key
+	HRESULT hr;
+	HKEY hkRoot = pPackage->fPerMachine ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
+	HKEY hkUninstallMsiProductCode = NULL;
+	DWORD dwType = 0;
+	LPWSTR sczMsiInstallLocation = NULL;
+	LPWSTR sczMsiUninstallSubKeyPath = NULL;
+	BOOL fWasFound = 0;
+	hr = StrAllocFormatted(&sczMsiUninstallSubKeyPath, L"%ls\\%ls", MSI_REGISTRATION_REGISTRY_UNINSTALL_KEY, pPackage->Msi.sczProductCode);
+	if (SUCCEEDED(hr))
+	{
+		hr = RegOpen(hkRoot, sczMsiUninstallSubKeyPath, KEY_READ, &hkUninstallMsiProductCode);
+		if (SUCCEEDED(hr))
+		{
+			hr = RegGetType(hkUninstallMsiProductCode, L"InstallLocation", &dwType);
+			if (SUCCEEDED(hr))
+			{
+				switch (dwType)
+				{
+				case REG_SZ:
+					hr = RegReadString(hkUninstallMsiProductCode, L"InstallLocation", &sczMsiInstallLocation);
+					if (SUCCEEDED(hr))
+					{
+						VariableSetString(pVariables, BURN_BUNDLE_INSTALL_LOCATION, sczMsiInstallLocation, TRUE);
+						fWasFound = true;
+					}
+					break;
+
+					// TODO: Case REG_MULTISZ - Any chance of this?
+				default:
+
+					break;
+				}
+			}
+		}
+	}
+
+	ReleaseRegKey(hkUninstallMsiProductCode);
+	ReleaseNullStr(sczMsiInstallLocation);
+	ReleaseNullStr(sczMsiUninstallSubKeyPath);
+	return fWasFound ? S_OK : E_NOTFOUND;
+}
+
 extern "C" HRESULT MsiEngineExecutePackage(
     __in_opt HWND hwndParent,
     __in BURN_EXECUTE_ACTION* pExecuteAction,
@@ -1211,6 +1259,7 @@ extern "C" HRESULT MsiEngineExecutePackage(
         hr = WiuInstallProduct(sczMsiPath, sczProperties, &restart);
         ExitOnFailure(hr, "Failed to install MSI package.");
 
+		hr = SetBundleInstallLocationVariableFromMSI(pExecuteAction->msiPackage.pPackage, pVariables);
         RegisterSourceDirectory(pExecuteAction->msiPackage.pPackage, sczMsiPath);
         break;
 
