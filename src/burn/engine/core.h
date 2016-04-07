@@ -60,6 +60,7 @@ const LPCWSTR BURN_BUNDLE_SOURCE_PROCESS_FOLDER = L"WixBundleSourceProcessFolder
 const LPCWSTR BURN_BUNDLE_TAG = L"WixBundleTag";
 const LPCWSTR BURN_BUNDLE_VERSION = L"WixBundleVersion";
 const LPCWSTR BURN_BUNDLE_INSTALL_LOCATION = L"WixBundleInstallLocation";
+const LPCWSTR BURN_BUNDLE_UNATTENDED_UNINSTALL = L"UnattendedUninstall";
 
 // The following constants must stay in sync with src\wix\Binder.cs
 const LPCWSTR BURN_BUNDLE_NAME = L"WixBundleName";

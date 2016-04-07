@@ -782,16 +782,33 @@ extern "C" HRESULT RegistrationSessionBegin(
             ExitOnFailure(hr, "Failed to write %ls value.", REGISTRY_BUNDLE_SYSTEM_COMPONENT);
         }
 
-        // QuietUninstallString: [path to exe] /uninstall /quiet
+		// QuietUninstallString: [path to exe] /uninstall /quiet
         hr = RegWriteStringFormatted(hkRegistration, REGISTRY_BUNDLE_QUIET_UNINSTALL_STRING, L"\"%ls\" /uninstall /quiet", pRegistration->sczCacheExecutablePath);
         ExitOnFailure(hr, "Failed to write %ls value.", REGISTRY_BUNDLE_QUIET_UNINSTALL_STRING);
+		
+		// Set /quiet option on UninstallString if UnattendedUninstall variable is set
+		LONGLONG fUnattendedUninstall = 0;
+		hr = VariableGetNumeric(pVariables, BURN_BUNDLE_UNATTENDED_UNINSTALL, &fUnattendedUninstall);
+		if (hr != E_NOTFOUND) {
+			ExitOnFailure(hr, "Failed to read  %ls variable.", BURN_BUNDLE_UNATTENDED_UNINSTALL);
+		}
 
-        // UninstallString, [path to exe]
-        // If the modify button is to be disabled, we'll add "/modify" to the uninstall string because the button is "Uninstall/Change". Otherwise,
-        // it's just the "Uninstall" button so we add "/uninstall" to make the program just go away.
-        LPCWSTR wzUninstallParameters = (BURN_REGISTRATION_MODIFY_DISABLE_BUTTON == pRegistration->modify) ? L"/modify" : L" /uninstall";
-        hr = RegWriteStringFormatted(hkRegistration, REGISTRY_BUNDLE_UNINSTALL_STRING, L"\"%ls\" %ls", pRegistration->sczCacheExecutablePath, wzUninstallParameters);
-        ExitOnFailure(hr, "Failed to write %ls value.", REGISTRY_BUNDLE_UNINSTALL_STRING);
+		// UninstallString, [path to exe]
+		if (fUnattendedUninstall)
+		{
+			// same as QuietUninstallString - allows Automated testers like Windows Application Certification Kit (which just actions the UninstallString command) to perform an unattended uninstallation
+			hr = RegWriteStringFormatted(hkRegistration, REGISTRY_BUNDLE_UNINSTALL_STRING, L"\"%ls\" /uninstall /quiet", pRegistration->sczCacheExecutablePath);
+			ExitOnFailure(hr, "Failed to write %ls value.", REGISTRY_BUNDLE_UNINSTALL_STRING);
+		}
+		else
+		{
+
+			// If the modify button is to be disabled, we'll add "/modify" to the uninstall string because the button is "Uninstall/Change". Otherwise,
+			// it's just the "Uninstall" button so we add "/uninstall" to make the program just go away.
+			LPCWSTR wzUninstallParameters = (BURN_REGISTRATION_MODIFY_DISABLE_BUTTON == pRegistration->modify) ? L"/modify" : L" /uninstall";
+			hr = RegWriteStringFormatted(hkRegistration, REGISTRY_BUNDLE_UNINSTALL_STRING, L"\"%ls\" %ls", pRegistration->sczCacheExecutablePath, wzUninstallParameters);
+			ExitOnFailure(hr, "Failed to write %ls value.", REGISTRY_BUNDLE_UNINSTALL_STRING);
+		}
 
         if (pRegistration->softwareTags.cSoftwareTags)
         {
